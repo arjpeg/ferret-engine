@@ -11,8 +11,17 @@ use winit::{
     window::{Window, WindowId},
 };
 
+use crate::{renderer::Renderer, timer::FrameTimer};
+
 pub struct Application {
+    /// The main window onto which everything is rendered.
     pub(self) window: Arc<Window>,
+
+    /// The renderer responsible for rendering the scene and UI.
+    renderer: Renderer,
+
+    /// The frame timer which manages the duration of how long each frame took.
+    timer: FrameTimer,
 }
 
 impl Application {
@@ -20,6 +29,7 @@ impl Application {
     pub fn run() -> anyhow::Result<()> {
         let event_loop = EventLoop::<Self>::with_user_event().build()?;
 
+        #[cfg(target_family = "wasm")]
         let proxy = event_loop.create_proxy();
 
         event_loop.set_control_flow(ControlFlow::Poll);
@@ -31,8 +41,17 @@ impl Application {
         Ok(())
     }
 
+    /// Creates a new [`Application`] targetting the given window.
     pub async fn new(window: Arc<Window>) -> Self {
-        Self { window }
+        let timer = FrameTimer::default();
+
+        let renderer = Renderer::new(Arc::clone(&window)).await.unwrap();
+
+        Self {
+            window,
+            timer,
+            renderer,
+        }
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, event: WindowEvent) {
@@ -48,6 +67,11 @@ impl Application {
     }
 
     fn render(&mut self) {
+        self.timer.tick();
+
+        self.window.pre_present_notify();
+        self.renderer.render();
+
         self.window.request_redraw();
     }
 
@@ -76,12 +100,17 @@ impl ApplicationHandler<Application> for ApplicationRunner {
 
             const CANVAS_ID: &str = "canvas";
 
-            let window = wgpu::web_sys::window().unwrap_throw();
+            let window = web_sys::window().unwrap_throw();
             let document = window.document().unwrap_throw();
             let canvas = document.get_element_by_id(CANVAS_ID).unwrap_throw();
             let html_canvas_element = canvas.unchecked_into();
 
             attributes = attributes.with_canvas(Some(html_canvas_element));
+        }
+
+        #[cfg(not(target_family = "wasm"))]
+        {
+            attributes = attributes.with_inner_size(PhysicalSize::new(1920, 1080));
         }
 
         let window = Arc::new(event_loop.create_window(attributes).unwrap());

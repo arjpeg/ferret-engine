@@ -497,13 +497,18 @@ name = "ferret-engine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bytemuck",
  "console_error_panic_hook",
  "console_log",
  "env_logger",
+ "glam",
  "log",
  "pollster",
+ "resource",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "web-sys",
+ "web-time",
  "wgpu",
  "winit",
 ]
@@ -572,6 +577,15 @@ dependencies = [
  "khronos_api",
  "log",
  "xml-rs",
+]
+
+[[package]]
+name = "glam"
+version = "0.30.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50a99dbe56b72736564cfa4b85bf9a33079f16ae8b74983ab06af3b1a3696b11"
+dependencies = [
+ "bytemuck",
 ]
 
 [[package]]
@@ -1471,6 +1485,24 @@ name = "renderdoc-sys"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
+
+[[package]]
+name = "resource"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eba77c4af60b466e86a835324da49c58f3effcec3f658989062adddff17ea0ae"
+dependencies = [
+ "resource_list_proc_macro",
+]
+
+[[package]]
+name = "resource_list_proc_macro"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd4ffd64e61cd0b962d75f623355e06ba6318d5028920394b269bb8972b61ace"
+dependencies = [
+ "quote",
+]
 
 [[package]]
 name = "rustc-hash"

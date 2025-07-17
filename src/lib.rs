@@ -1,6 +1,8 @@
 use crate::application::Application;
 
 mod application;
+mod renderer;
+mod timer;
 
 #[cfg(target_family = "wasm")]
 #[wasm_bindgen::prelude::wasm_bindgen(start)]
@@ -16,7 +18,8 @@ pub fn run() -> Result<(), wasm_bindgen::JsValue> {
 #[cfg(not(target_arch = "wasm32"))]
 pub fn run() -> anyhow::Result<()> {
     env_logger::builder()
-        .filter_level(LevelFilter::Debug)
+        .filter_level(log::LevelFilter::Info)
+        .filter_module("ferret-engine", log::LevelFilter::Debug)
         .init();
 
     Application::run()
