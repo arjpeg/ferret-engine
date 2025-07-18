@@ -54,7 +54,7 @@ pub enum Geometry {
 
 impl SpriteRenderer {
     /// The maximum count of vertices count per batch.
-    pub const MAX_VERTICES_PER_BATCH: u64 = 100000;
+    pub const MAX_VERTICES_PER_BATCH: u64 = 100;
 
     /// Creates a new [`SpriteRenderer`].
     pub fn new(device: &Device) -> Self {
@@ -67,7 +67,7 @@ impl SpriteRenderer {
 
         let index_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("SpriteRenderer::index_buffer"),
-            size: Self::MAX_VERTICES_PER_BATCH * size_of::<i32>() as u64 * 3,
+            size: Self::MAX_VERTICES_PER_BATCH * size_of::<u32>() as u64 * 3,
             usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -102,38 +102,10 @@ impl SpriteRenderer {
 
         self.vertex_count = vertices.len() as _;
         self.index_count = indices.len() as _;
-
-        queue.write_buffer(
-            &self.vertex_buffer,
-            0,
-            bytemuck::cast_slice(&[
-                SpriteVertex {
-                    position: vec2(0.0, 0.5),
-                    color: [1.0, 0.0, 0.0],
-                },
-                SpriteVertex {
-                    position: vec2(-0.5, 0.0),
-                    color: [0.0, 1.0, 0.0],
-                },
-                SpriteVertex {
-                    position: vec2(0.5, 0.),
-                    color: [0.0, 0.0, 1.0],
-                },
-            ]),
-        );
-        queue.write_buffer(
-            &self.index_buffer,
-            0,
-            bytemuck::cast_slice(&[0u32, 1, 2, 2, 1, 0]),
-        );
-
-        self.vertex_count = 3;
-        self.index_count = 3;
     }
 
     /// Renders all accumulated sprites to the current render pass.
     pub fn render(&mut self, pipelines: &Pipelines, rpass: &mut RenderPass<'_>) {
-        log::debug!("rendering {} tris", self.index_count.div_ceil(3));
         rpass.set_pipeline(&pipelines.sprite_render_pipeline);
 
         rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));

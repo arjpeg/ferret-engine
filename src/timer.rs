@@ -39,6 +39,7 @@ impl FrameTimer {
         if elapsed_second_time > Duration::from_secs(1) {
             self.fps = self.frame_count as f32 / elapsed_second_time.as_secs_f32();
             self.last_second = Instant::now();
+            self.frame_count = 0;
 
             log::info!("running at {:.4} fps", self.fps);
         }

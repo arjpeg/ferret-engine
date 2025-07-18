@@ -77,6 +77,7 @@ impl Application {
 
     fn resize(&mut self, size: PhysicalSize<u32>) {
         log::debug!("resizing to new size: {size:?}");
+        self.renderer.resize(size);
     }
 }
 

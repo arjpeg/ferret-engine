@@ -175,7 +175,7 @@ impl Renderer {
                     position: vec2(0.0, 0.0),
                     rotation: 0.0,
                     geometry: Geometry::Square {
-                        length: 0.01,
+                        length: 0.5,
                         anchor: Anchor::Center,
                     },
                     color: [0.3, 0.5, 0.6],
