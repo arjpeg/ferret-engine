@@ -91,7 +91,6 @@ enum ApplicationRunner {
 
 impl ApplicationHandler<Application> for ApplicationRunner {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        #[allow(unused_mut)]
         let mut attributes = Window::default_attributes();
 
         #[cfg(target_family = "wasm")]
@@ -107,23 +106,9 @@ impl ApplicationHandler<Application> for ApplicationRunner {
             let html_canvas_element = canvas.unchecked_into();
 
             attributes = attributes.with_canvas(Some(html_canvas_element));
-        }
 
-        #[cfg(not(target_family = "wasm"))]
-        {
-            attributes = attributes.with_inner_size(PhysicalSize::new(1920, 1080));
-        }
+            let window = Arc::new(event_loop.create_window(attributes).unwrap());
 
-        let window = Arc::new(event_loop.create_window(attributes).unwrap());
-
-        #[cfg(not(target_family = "wasm"))]
-        {
-            let application = pollster::block_on(Application::new(window));
-            *self = Self::Running(application);
-        }
-
-        #[cfg(target_family = "wasm")]
-        {
             if let Self::Initializing { proxy } = self
                 && let Some(proxy) = proxy.take()
             {
@@ -131,6 +116,15 @@ impl ApplicationHandler<Application> for ApplicationRunner {
                     assert!(proxy.send_event(Application::new(window).await).is_ok());
                 });
             }
+        }
+
+        #[cfg(not(target_family = "wasm"))]
+        {
+            attributes = attributes.with_inner_size(PhysicalSize::new(1920, 1080));
+
+            let window = Arc::new(event_loop.create_window(attributes).unwrap());
+            let application = pollster::block_on(Application::new(window));
+            *self = Self::Running(application);
         }
     }
 
