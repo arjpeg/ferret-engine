@@ -1,14 +1,15 @@
 // a simple sprite shader for 2D
 struct VertexInput {
     @location(0) position: vec2<f32>,
-    @location(1) color: vec3<f32>
 }
 
 struct InstanceInput {
-    @location(2) mm_0: vec4<f32>,
-    @location(3) mm_1: vec4<f32>,
-    @location(4) mm_2: vec4<f32>,
-    @location(5) mm_3: vec4<f32>,
+    @location(1) mm_0: vec4<f32>,
+    @location(2) mm_1: vec4<f32>,
+    @location(3) mm_2: vec4<f32>,
+    @location(4) mm_3: vec4<f32>,
+
+    @location(5) color: vec4<f32>,
 }
 
 struct VertexOutput {
@@ -31,7 +32,7 @@ fn vs_main(
     var out: VertexOutput;
 
     out.clip_position = model_matrix * vec4<f32>(vertex.position, 0.0, 1.0);
-    out.color = vertex.color;
+    out.color = instance.color.xyz;
 
     return out;
 }

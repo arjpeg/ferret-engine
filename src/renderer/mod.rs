@@ -7,7 +7,7 @@ use wgpu::*;
 use winit::{dpi::PhysicalSize, window::Window};
 
 use crate::{
-    prelude::{Mesh2D, Transform},
+    prelude::{Material2D, Mesh2D, Transform},
     renderer::{pipelines::Pipelines, shaders::Shaders, sprite::SpriteRenderer},
 };
 
@@ -24,6 +24,7 @@ pub struct Renderer {
     surface: Surface<'static>,
     surface_config: SurfaceConfiguration,
 
+    #[allow(unused)]
     shaders: Shaders,
 
     pipelines: Pipelines,
@@ -170,9 +171,9 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            let sprites = <(&Mesh2D, &Transform)>::query()
+            let sprites = <(&Mesh2D, &Material2D, &Transform)>::query()
                 .iter(world)
-                .map(|(m, t)| (*m, *t))
+                .map(|(mesh, material, transform)| (*mesh, *material, *transform))
                 .collect::<Vec<_>>();
 
             self.sprite_renderer

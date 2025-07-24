@@ -1,5 +1,5 @@
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Vec2};
+use glam::{Mat4, Vec2, Vec4};
 use wgpu::{VertexBufferLayout, VertexStepMode, vertex_attr_array};
 
 /// A vertex of a 2D sprite triangle.
@@ -16,8 +16,10 @@ pub struct SpriteVertex {
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
 pub struct SpriteInstance {
-    /// The model matrix transformation of this sprite.
+    /// The model matrix transformation of the sprite.
     pub transform: Mat4,
+    /// The flat color of the sprite.
+    pub color: Vec4,
 }
 
 impl SpriteVertex {
@@ -28,7 +30,6 @@ impl SpriteVertex {
         attributes: &{
             vertex_attr_array![
                 0 => Float32x2,
-                1 => Float32x3
             ]
         },
     };
@@ -41,6 +42,7 @@ impl SpriteInstance {
         step_mode: VertexStepMode::Instance,
         attributes: &{
             vertex_attr_array![
+                1 => Float32x4,
                 2 => Float32x4,
                 3 => Float32x4,
                 4 => Float32x4,

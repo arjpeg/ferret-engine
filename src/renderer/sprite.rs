@@ -1,11 +1,15 @@
 use std::collections::HashMap;
 
-use glam::vec2;
+use glam::{vec2, vec4};
 use wgpu::{util::*, *};
 
 use crate::{
     component::{Mesh2D, Shape2D, Transform},
-    renderer::{pipelines::Pipelines, vertex::SpriteVertex},
+    prelude::Material2D,
+    renderer::{
+        pipelines::Pipelines,
+        vertex::{SpriteInstance, SpriteVertex},
+    },
 };
 
 /// The main 2D sprite renderer, responsible for efficiently batching 2D geometry.
@@ -13,8 +17,8 @@ pub struct SpriteRenderer {
     /// The geometry mesh for rectangles.
     rectangle_mesh: GeometryMesh,
 
-    /// The buffer holding all transforms for sprites currently being rendered.
-    transform_buffer: Buffer,
+    /// The buffer holding all information for sprites currently being rendered.
+    instance_buffer: Buffer,
 }
 
 /// The base geometry for a 2D primitive shape.
@@ -67,7 +71,7 @@ impl SpriteRenderer {
 
         Self {
             rectangle_mesh,
-            transform_buffer,
+            instance_buffer: transform_buffer,
         }
     }
 
@@ -77,37 +81,40 @@ impl SpriteRenderer {
         pipelines: &Pipelines,
         rpass: &mut RenderPass<'_>,
         queue: &Queue,
-        sprites: Vec<(Mesh2D, Transform)>,
+        sprites: Vec<(Mesh2D, Material2D, Transform)>,
     ) {
         rpass.set_pipeline(&pipelines.sprite_render_pipeline);
 
-        let mut sprites_by_shape = HashMap::<Shape2D, Vec<Transform>>::new();
+        let mut sprites_by_shape = HashMap::<Shape2D, Vec<SpriteInstance>>::new();
 
-        for (Mesh2D(shape), transform) in sprites {
-            sprites_by_shape.entry(shape).or_default().push(transform);
+        for (Mesh2D(shape), material, transform) in sprites {
+            sprites_by_shape
+                .entry(shape)
+                .or_default()
+                .push(SpriteInstance {
+                    transform: transform.as_model_matrix(),
+                    color: match material {
+                        Material2D::FlatColor { r, g, b } => vec4(r, g, b, 1.0),
+                    },
+                });
         }
 
         // shape: (first instance, length)
         let mut sprite_instance_ranges = HashMap::<Shape2D, (u32, u32)>::new();
 
-        let model_matrices =
+        let instances =
             sprites_by_shape
                 .into_iter()
-                .fold(Vec::new(), |mut matrices, (shape, transforms)| {
-                    let first_instance = matrices.len() as u32;
-                    let instances = transforms.len() as u32;
+                .fold(Vec::new(), |mut instances, (shape, sprites)| {
+                    sprite_instance_ranges
+                        .insert(shape, (instances.len() as u32, sprites.len() as u32));
 
-                    sprite_instance_ranges.insert(shape, (first_instance, instances));
-
-                    matrices.extend(transforms.iter().map(Transform::as_model_matrix));
-                    matrices
+                    instances.extend(sprites);
+                    instances
                 });
 
-        queue.write_buffer(
-            &self.transform_buffer,
-            0,
-            bytemuck::cast_slice(&model_matrices),
-        );
+        queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instances));
+        rpass.set_vertex_buffer(1, self.instance_buffer.slice(..));
 
         for (shape, (first_instance, count)) in sprite_instance_ranges {
             let mesh = match shape {
@@ -115,7 +122,6 @@ impl SpriteRenderer {
             };
 
             rpass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-            rpass.set_vertex_buffer(1, self.transform_buffer.slice(..));
             rpass.set_index_buffer(mesh.index_buffer.slice(..), IndexFormat::Uint16);
 
             rpass.draw_indexed(0..mesh.index_count, 0, first_instance..count as _);
