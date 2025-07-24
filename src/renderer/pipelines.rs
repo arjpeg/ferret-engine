@@ -1,6 +1,9 @@
 use wgpu::*;
 
-use crate::renderer::{shaders::Shaders, vertex::SpriteVertex};
+use crate::renderer::{
+    shaders::Shaders,
+    vertex::{SpriteInstance, SpriteVertex},
+};
 
 /// All pipelines and bind group layouts used for rendering.
 pub struct Pipelines {
@@ -25,7 +28,7 @@ impl Pipelines {
                 module: shaders.sprite.module(),
                 entry_point: Some("vs_main"),
                 compilation_options: PipelineCompilationOptions::default(),
-                buffers: &[SpriteVertex::LAYOUT],
+                buffers: &[SpriteVertex::LAYOUT, SpriteInstance::LAYOUT],
             },
             fragment: Some(FragmentState {
                 module: shaders.sprite.module(),

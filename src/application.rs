@@ -87,7 +87,7 @@ impl Application {
     /// Renders the game world and all UI.
     fn render(&mut self) {
         self.window.pre_present_notify();
-        self.renderer.render();
+        self.renderer.render(&self.world);
 
         self.window.request_redraw();
     }

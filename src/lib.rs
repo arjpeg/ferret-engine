@@ -1,4 +1,5 @@
 pub mod application;
+mod component;
 pub mod prelude;
 mod renderer;
 mod timer;

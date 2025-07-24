@@ -2,10 +2,14 @@ use std::sync::Arc;
 
 use anyhow::Context;
 
+use legion::{IntoQuery, World};
 use wgpu::*;
 use winit::{dpi::PhysicalSize, window::Window};
 
-use crate::renderer::{pipelines::Pipelines, shaders::Shaders, sprite::SpriteRenderer};
+use crate::{
+    prelude::{Mesh2D, Transform},
+    renderer::{pipelines::Pipelines, shaders::Shaders, sprite::SpriteRenderer},
+};
 
 mod pipelines;
 mod shaders;
@@ -124,7 +128,7 @@ impl Renderer {
     }
 
     /// Renders the entire scene and all UI.
-    pub fn render(&mut self) {
+    pub fn render(&mut self, world: &World) {
         let output = match self.surface.get_current_texture() {
             Ok(tex) => tex,
 
@@ -166,23 +170,13 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            use glam::*;
-            use sprite::*;
+            let sprites = <(&Mesh2D, &Transform)>::query()
+                .iter(world)
+                .map(|(m, t)| (*m, *t))
+                .collect::<Vec<_>>();
 
-            self.sprite_renderer.submit_sprites(
-                &self.queue,
-                vec![Sprite {
-                    position: vec2(0.0, 0.0),
-                    rotation: 0.0,
-                    geometry: Geometry::Square {
-                        length: 0.5,
-                        anchor: Anchor::Center,
-                    },
-                    color: [0.3, 0.5, 0.6],
-                }],
-            );
-
-            self.sprite_renderer.render(&self.pipelines, &mut pass);
+            self.sprite_renderer
+                .render(&self.pipelines, &mut pass, &self.queue, sprites);
         }
 
         self.queue.submit([encoder.finish()]);
