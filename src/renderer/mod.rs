@@ -7,13 +7,19 @@ use wgpu::*;
 use winit::{dpi::PhysicalSize, window::Window};
 
 use crate::{
-    prelude::{Material2D, Mesh2D, Transform},
-    renderer::{pipelines::Pipelines, shaders::Shaders, sprite::SpriteRenderer},
+    renderer::{
+        camera::Camera2D,
+        pipelines::Pipelines,
+        shaders::Shaders,
+        sprite::{Material2D, Mesh2D, SpriteRenderer},
+    },
+    transform::Transform,
 };
 
+pub mod camera;
 mod pipelines;
 mod shaders;
-mod sprite;
+pub mod sprite;
 mod vertex;
 
 /// All state that is required for drawing a full scene and UI.
@@ -76,7 +82,7 @@ impl Renderer {
 
         let pipelines = Pipelines::new(&device, &shaders, &surface_config);
 
-        let sprite_renderer = SpriteRenderer::new(&device);
+        let sprite_renderer = SpriteRenderer::new(&device, &pipelines);
 
         Ok(Self {
             device,
@@ -129,7 +135,7 @@ impl Renderer {
     }
 
     /// Renders the entire scene and all UI.
-    pub fn render(&mut self, world: &World) {
+    pub fn render(&mut self, world: &mut World) {
         let output = match self.surface.get_current_texture() {
             Ok(tex) => tex,
 
@@ -171,16 +177,35 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            let sprites = <(&Mesh2D, &Material2D, &Transform)>::query()
-                .iter(world)
-                .map(|(mesh, material, transform)| (*mesh, *material, *transform))
-                .collect::<Vec<_>>();
+            let mut camera_query = <(&mut Camera2D, &Transform)>::query();
 
-            self.sprite_renderer
-                .render(&self.pipelines, &mut pass, &self.queue, sprites);
+            let (mut left, mut right) = world.split_for_query(&camera_query);
+
+            camera_query.for_each_mut(&mut left, |(camera, transform)| {
+                let sprites = camera.extract_entities(&mut right);
+
+                let projection = camera.projection_matrix(self.aspect_ratio());
+                let view = Camera2D::view_matrix(transform);
+
+                let transformation = view * projection;
+
+                self.sprite_renderer.render(
+                    &mut pass,
+                    &self.queue,
+                    &self.pipelines,
+                    transformation,
+                    sprites,
+                );
+            });
         }
 
         self.queue.submit([encoder.finish()]);
         output.present();
+    }
+
+    /// Calculates the aspect ratio of the render surface.
+    fn aspect_ratio(&self) -> f32 {
+        let SurfaceConfiguration { width, height, .. } = &self.surface_config;
+        *width as f32 / *height as f32
     }
 }

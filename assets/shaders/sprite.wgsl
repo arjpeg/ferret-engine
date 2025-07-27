@@ -15,7 +15,10 @@ struct InstanceInput {
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) color: vec3<f32>,
-};
+}
+
+@group(0) @binding(0)
+var<uniform> camera: mat4x4<f32>;
 
 @vertex
 fn vs_main(
@@ -31,7 +34,7 @@ fn vs_main(
 
     var out: VertexOutput;
 
-    out.clip_position = model_matrix * vec4<f32>(vertex.position, 0.0, 1.0);
+    out.clip_position = camera * model_matrix * vec4<f32>(vertex.position, 0.0, 1.0);
     out.color = instance.color.xyz;
 
     return out;

@@ -1,8 +1,8 @@
 pub mod application;
-mod component;
 pub mod prelude;
 mod renderer;
 mod timer;
+mod transform;
 
 #[cfg(target_family = "wasm")]
 pub fn init_logging() {

@@ -1,30 +1,5 @@
 use glam::{Mat4, Quat, Vec3};
 
-/// A 2D mesh used for rendering.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Mesh2D(pub Shape2D);
-
-/// A 2D primitive that represenets some basic geometry.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub enum Shape2D {
-    /// A rectangle centered at the origin with corners at (-1, -1), (1, 1).
-    Rectangle,
-}
-
-/// A material used for rendering a 2D sprite
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub enum Material2D {
-    /// The entire sprite is shaded a flat color.
-    FlatColor {
-        /// The red component in the range [0, 1].
-        r: f32,
-        /// The green component in the range [0, 1].
-        g: f32,
-        /// The blue component in the range [0, 1].
-        b: f32,
-    },
-}
-
 /// The transformation of an object in world space.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Transform {

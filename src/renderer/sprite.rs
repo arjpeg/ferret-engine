@@ -1,24 +1,51 @@
 use std::collections::HashMap;
 
-use glam::{vec2, vec4};
-use wgpu::{util::*, *};
+use glam::{Mat4, vec2, vec4};
+use wgpu::{util::*, wgt::BufferDescriptor, *};
 
-use crate::{
-    component::{Mesh2D, Shape2D, Transform},
-    prelude::Material2D,
-    renderer::{
-        pipelines::Pipelines,
-        vertex::{SpriteInstance, SpriteVertex},
-    },
+use crate::renderer::{
+    pipelines::Pipelines,
+    vertex::{SpriteInstance, SpriteVertex},
 };
+use crate::transform::Transform;
+
+/// A 2D mesh used for rendering.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct Mesh2D(pub Shape2D);
+
+/// A 2D primitive that represenets some basic geometry.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum Shape2D {
+    /// A rectangle centered at the origin with corners at (-1, -1), (1, 1).
+    Rectangle,
+}
+
+/// A material used for rendering a 2D sprite
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub enum Material2D {
+    /// The entire sprite is shaded a flat color.
+    FlatColor {
+        /// The red component in the range [0, 1].
+        r: f32,
+        /// The green component in the range [0, 1].
+        g: f32,
+        /// The blue component in the range [0, 1].
+        b: f32,
+    },
+}
 
 /// The main 2D sprite renderer, responsible for efficiently batching 2D geometry.
-pub struct SpriteRenderer {
+pub(crate) struct SpriteRenderer {
     /// The geometry mesh for rectangles.
     rectangle_mesh: GeometryMesh,
 
     /// The buffer holding all information for sprites currently being rendered.
     instance_buffer: Buffer,
+
+    /// The bind group holding the camera's transformation matrix.
+    camera_bind_group: BindGroup,
+    /// The uniform buffer holding the camera's transformation matrix.
+    camera_buffer: Buffer,
 }
 
 /// The base geometry for a 2D primitive shape.
@@ -37,8 +64,8 @@ impl SpriteRenderer {
     pub const MAX_SPRITES_PER_BATCH: u64 = 100;
 
     /// Creates a new [`SpriteRenderer`].
-    pub fn new(device: &Device) -> Self {
-        let transform_buffer = device.create_buffer(&BufferDescriptor {
+    pub fn new(device: &Device, pipelines: &Pipelines) -> Self {
+        let instance_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("SpriteRenderer::transform_buffer"),
             size: Self::MAX_SPRITES_PER_BATCH * size_of::<Transform>() as u64,
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
@@ -69,21 +96,46 @@ impl SpriteRenderer {
             &[0, 1, 2, 2, 3, 0],
         );
 
+        let camera_buffer = device.create_buffer(&BufferDescriptor {
+            label: Some("SpriteRenderer::camera_buffer"),
+            size: size_of::<Mat4>() as BufferAddress,
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let camera_bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("SpriteRenderer::camera_bind_group"),
+            layout: &pipelines.camera_bind_group_layout,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+        });
+
         Self {
             rectangle_mesh,
-            instance_buffer: transform_buffer,
+            instance_buffer,
+            camera_bind_group,
+            camera_buffer,
         }
     }
 
     /// Renders all the provided sprites to the current render pass.
     pub fn render(
         &mut self,
-        pipelines: &Pipelines,
         rpass: &mut RenderPass<'_>,
         queue: &Queue,
+        pipelines: &Pipelines,
+        camera_transformation: Mat4,
         sprites: Vec<(Mesh2D, Material2D, Transform)>,
     ) {
         rpass.set_pipeline(&pipelines.sprite_render_pipeline);
+
+        queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::bytes_of(&camera_transformation),
+        );
 
         let mut sprites_by_shape = HashMap::<Shape2D, Vec<SpriteInstance>>::new();
 
@@ -114,6 +166,8 @@ impl SpriteRenderer {
                 });
 
         queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instances));
+
+        rpass.set_bind_group(0, &self.camera_bind_group, &[]);
         rpass.set_vertex_buffer(1, self.instance_buffer.slice(..));
 
         for (shape, (first_instance, count)) in sprite_instance_ranges {

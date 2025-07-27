@@ -9,15 +9,33 @@ use crate::renderer::{
 pub struct Pipelines {
     /// The 2D sprite renderer pipeline.
     pub sprite_render_pipeline: RenderPipeline,
+
+    /// The bind group layout used for holding a camera's transformation matrix.
+    pub camera_bind_group_layout: BindGroupLayout,
 }
 
 impl Pipelines {
     /// Creates and initializes all pipelines based on the given shaders.
     pub fn new(device: &Device, shaders: &Shaders, surface_config: &SurfaceConfiguration) -> Self {
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: Some("Pipelines::camera_bind_group_layout"),
+                entries: &[BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::VERTEX | ShaderStages::FRAGMENT,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
         let sprite_render_pipeline_layout =
             device.create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some("Pipelines::sprite_render_pipeline_layout"),
-                bind_group_layouts: &[],
+                bind_group_layouts: &[&camera_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -56,6 +74,7 @@ impl Pipelines {
 
         Self {
             sprite_render_pipeline,
+            camera_bind_group_layout,
         }
     }
 }
