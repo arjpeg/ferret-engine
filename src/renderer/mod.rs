@@ -2,17 +2,12 @@ use std::sync::Arc;
 
 use anyhow::Context;
 
-use legion::{IntoQuery, World};
 use wgpu::*;
 use winit::{dpi::PhysicalSize, window::Window};
 
 use crate::{
-    renderer::{
-        camera::Camera2D,
-        pipelines::Pipelines,
-        shaders::Shaders,
-        sprite::{Material2D, Mesh2D, SpriteRenderer},
-    },
+    ecs::World,
+    renderer::{camera::Camera2D, pipelines::Pipelines, shaders::Shaders, sprite::SpriteRenderer},
     transform::Transform,
 };
 
@@ -177,12 +172,8 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            let mut camera_query = <(&mut Camera2D, &Transform)>::query();
-
-            let (mut left, mut right) = world.split_for_query(&camera_query);
-
-            camera_query.for_each_mut(&mut left, |(camera, transform)| {
-                let sprites = camera.extract_entities(&mut right);
+            for (_, (camera, transform)) in world.query::<(&Camera2D, &Transform)>().iter() {
+                let sprites = camera.extract_entities(&world);
 
                 let projection = camera.projection_matrix(self.aspect_ratio());
                 let view = Camera2D::view_matrix(transform);
@@ -196,7 +187,7 @@ impl Renderer {
                     transformation,
                     sprites,
                 );
-            });
+            }
         }
 
         self.queue.submit([encoder.finish()]);

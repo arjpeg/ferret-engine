@@ -8,10 +8,11 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 anyhow = "1.0.98"
+anymap = "0.12.1"
 bytemuck = { version = "1.23.1", features = ["derive"] }
 env_logger = "0.11.8"
 glam = { version = "0.30.4", features = ["bytemuck"] }
-legion = "0.4.0"
+hecs = "0.10.5"
 log = "0.4.27"
 pollster = { version = "0.4.0", features = ["macro"] }
 resource = "0.6.0"

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use legion::{Resources, Schedule, World, systems::ParallelRunnable};
+use anymap::AnyMap;
 #[cfg(target_family = "wasm")]
 use winit::event_loop::EventLoopProxy;
 
@@ -12,7 +12,11 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::{renderer::Renderer, timer::FrameTimer};
+use crate::{
+    ecs::{Schedule, World},
+    renderer::Renderer,
+    timer::FrameTimer,
+};
 
 pub struct Application {
     /// The main window onto which everything is rendered.
@@ -20,10 +24,8 @@ pub struct Application {
 
     /// The core ECS game world in which all entities live in.
     world: World,
-    /// A scheduler for how to excecute systems to act on the `world` during the update cycle.
-    update_schedule: Schedule,
-    /// All resources bound to the `world`.
-    resources: Resources,
+    /// The schedule for all systems to run.
+    schedule: Schedule,
 
     /// The renderer responsible for rendering the scene and UI.
     renderer: Renderer,
@@ -36,25 +38,17 @@ impl Application {
     }
 
     /// Creates a new [`Application`].
-    pub(crate) async fn new(
-        window: Arc<Window>,
-        mut startup_schedule: Schedule,
-        update_schedule: Schedule,
-        mut resources: Resources,
-    ) -> Self {
+    pub(crate) async fn new(window: Arc<Window>, schedule: Schedule, resources: AnyMap) -> Self {
         let renderer = Renderer::new(Arc::clone(&window)).await.unwrap();
 
-        let mut world = World::default();
-        resources.insert(FrameTimer::default());
-
-        startup_schedule.execute(&mut world, &mut resources);
+        let mut world = World::new(resources);
+        world.insert_resource::<FrameTimer>(FrameTimer::default());
 
         Self {
             window,
             renderer,
             world,
-            update_schedule,
-            resources,
+            schedule,
         }
     }
 
@@ -76,12 +70,8 @@ impl Application {
 
     /// Runs the main update cycle of the application.
     fn update(&mut self) {
-        if let Some(mut timer) = self.resources.get_mut::<FrameTimer>() {
-            timer.tick();
-        }
-
-        self.update_schedule
-            .execute(&mut self.world, &mut self.resources);
+        self.world.get_resource_mut::<FrameTimer>().tick();
+        self.schedule.execute(&mut self.world);
     }
 
     /// Renders the game world and all UI.
@@ -101,12 +91,10 @@ impl Application {
 
 enum ApplicationRunner {
     Initializing {
-        /// The systems added to to the ECS update loop.
-        update_schedule: Option<Schedule>,
-        /// The systems to be run during initialization.
-        startup_schedule: Option<Schedule>,
-        /// The custom resources added to to the ECS world.
-        resources: Option<Resources>,
+        /// The systems to be excecuted.
+        schedule: Option<Schedule>,
+        /// The custom ECS resources added.
+        resources: Option<AnyMap>,
         /// A proxy to manage the async inititalization on the web.
         #[cfg(target_family = "wasm")]
         proxy: Option<EventLoopProxy<Application>>,
@@ -119,8 +107,7 @@ impl ApplicationHandler<Application> for ApplicationRunner {
         let mut attributes = Window::default_attributes();
 
         let Self::Initializing {
-            update_schedule,
-            startup_schedule,
+            schedule,
             resources,
             ..
         } = self
@@ -128,8 +115,7 @@ impl ApplicationHandler<Application> for ApplicationRunner {
             return;
         };
 
-        let update_systems = update_schedule.take().unwrap();
-        let startup_systems = startup_schedule.take().unwrap();
+        let schedule = schedule.take().unwrap();
         let resources = resources.take().unwrap();
 
         #[cfg(target_family = "wasm")]
@@ -152,8 +138,7 @@ impl ApplicationHandler<Application> for ApplicationRunner {
                 && let Some(proxy) = proxy.take()
             {
                 wasm_bindgen_futures::spawn_local(async move {
-                    let app =
-                        Application::new(window, startup_systems, update_systems, resources).await;
+                    let app = Application::new(window, schedule, resources).await;
 
                     assert!(proxy.send_event(app).is_ok());
                 });
@@ -165,12 +150,7 @@ impl ApplicationHandler<Application> for ApplicationRunner {
             attributes = attributes.with_inner_size(PhysicalSize::new(1920, 1080));
 
             let window = Arc::new(event_loop.create_window(attributes).unwrap());
-            let application = pollster::block_on(Application::new(
-                window,
-                startup_systems,
-                update_systems,
-                resources,
-            ));
+            let application = pollster::block_on(Application::new(window, schedule, resources));
 
             *self = Self::Running(application);
         }
@@ -194,30 +174,28 @@ impl ApplicationHandler<Application> for ApplicationRunner {
 
 /// A builder for an [`Application`],
 pub struct ApplicationBuilder {
-    /// The systems currently registered to run per frame.
-    update_systems: legion::systems::Builder,
-    /// The systems currently registered to run once at application startup.
-    startup_systems: legion::systems::Builder,
+    /// The systems currently registered to run.
+    schedule: Schedule,
 
-    /// The ECS resources currently bound.
-    resources: Option<legion::Resources>,
+    /// The custom ECS resources added.
+    resources: AnyMap,
 }
 
 impl ApplicationBuilder {
     /// Registers a system to be run once at application initialization.
-    pub fn add_startup_system<T: ParallelRunnable + 'static>(&mut self, system: T) -> &mut Self {
-        self.startup_systems.add_system(system);
+    pub fn add_startup_system<T: Fn(&mut World) + 'static>(mut self, system: T) -> Self {
+        self.schedule.add_startup_system(system);
         self
     }
 
     /// Registers a system to be run in the update cycle of the app.
-    pub fn add_update_system<T: ParallelRunnable + 'static>(&mut self, system: T) -> &mut Self {
-        self.update_systems.add_system(system);
+    pub fn add_update_system<T: Fn(&mut World) + 'static>(mut self, system: T) -> Self {
+        self.schedule.add_update_system(system);
         self
     }
 
     /// Finalizes the [`Application`] and runs it.
-    pub fn run(&mut self) {
+    pub fn run(self) {
         let event_loop = EventLoop::<Application>::with_user_event().build().unwrap();
 
         #[cfg(target_family = "wasm")]
@@ -226,9 +204,8 @@ impl ApplicationBuilder {
         event_loop.set_control_flow(ControlFlow::Poll);
         event_loop
             .run_app(&mut ApplicationRunner::Initializing {
-                startup_schedule: Some(self.startup_systems.build()),
-                update_schedule: Some(self.update_systems.build()),
-                resources: self.resources.take(),
+                schedule: Some(self.schedule),
+                resources: Some(self.resources),
                 #[cfg(target_family = "wasm")]
                 proxy: Some(proxy),
             })
@@ -238,12 +215,9 @@ impl ApplicationBuilder {
 
 impl Default for ApplicationBuilder {
     fn default() -> Self {
-        use legion::systems::Builder;
-
         Self {
-            update_systems: Builder::default(),
-            startup_systems: Builder::default(),
-            resources: Some(Resources::default()),
+            schedule: Schedule::new(),
+            resources: AnyMap::new(),
         }
     }
 }

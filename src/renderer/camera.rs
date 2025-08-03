@@ -1,7 +1,9 @@
 use glam::Mat4;
-use legion::{IntoQuery, world::SubWorld};
 
-use crate::prelude::{Material2D, Mesh2D, Transform};
+use crate::{
+    ecs::World,
+    prelude::{Material2D, Mesh2D, Transform},
+};
 
 /// Represents a orthographic camera in 2D from which all 2D sprites will be rendered.
 #[derive(Debug, Clone)]
@@ -30,10 +32,11 @@ impl Camera2D {
     }
 
     /// Extracts the entities to be rendered from this camera.
-    pub fn extract_entities(&self, world: &SubWorld) -> Vec<(Mesh2D, Material2D, Transform)> {
-        <(&Mesh2D, &Material2D, &Transform)>::query()
-            .iter(world)
-            .map(|(mesh, material, transform)| (*mesh, *material, *transform))
+    pub fn extract_entities(&self, world: &World) -> Vec<(Mesh2D, Material2D, Transform)> {
+        world
+            .query::<(&Mesh2D, &Material2D, &Transform)>()
+            .iter()
+            .map(|(_, (mesh, material, transform))| (*mesh, *material, *transform))
             .collect()
     }
 }
