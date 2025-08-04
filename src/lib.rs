@@ -1,5 +1,6 @@
 pub mod application;
 mod ecs;
+mod input;
 pub mod prelude;
 mod renderer;
 mod timer;

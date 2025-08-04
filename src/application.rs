@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use anymap::AnyMap;
 #[cfg(target_family = "wasm")]
 use winit::event_loop::EventLoopProxy;
 
@@ -13,7 +12,8 @@ use winit::{
 };
 
 use crate::{
-    ecs::{Schedule, World},
+    ecs::{Resources, Schedule, World},
+    input::InputState,
     renderer::Renderer,
     timer::FrameTimer,
 };
@@ -24,6 +24,8 @@ pub struct Application {
 
     /// The core ECS game world in which all entities live in.
     world: World,
+    /// All resources bound to the world.
+    resources: Resources,
     /// The schedule for all systems to run.
     schedule: Schedule,
 
@@ -38,22 +40,31 @@ impl Application {
     }
 
     /// Creates a new [`Application`].
-    pub(crate) async fn new(window: Arc<Window>, schedule: Schedule, resources: AnyMap) -> Self {
+    pub(crate) async fn new(
+        window: Arc<Window>,
+        schedule: Schedule,
+        mut resources: Resources,
+    ) -> Self {
         let renderer = Renderer::new(Arc::clone(&window)).await.unwrap();
 
-        let mut world = World::new(resources);
-        world.insert_resource::<FrameTimer>(FrameTimer::default());
+        let world = World::new();
+
+        resources.insert(FrameTimer::default());
+        resources.insert(InputState::default());
 
         Self {
             window,
             renderer,
             world,
+            resources,
             schedule,
         }
     }
 
     /// Handles an incoming [`WindowEvent`]
     fn window_event(&mut self, event_loop: &ActiveEventLoop, event: WindowEvent) {
+        self.resources.get_mut::<InputState>().window_event(&event);
+
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
 
@@ -70,8 +81,9 @@ impl Application {
 
     /// Runs the main update cycle of the application.
     fn update(&mut self) {
-        self.world.get_resource_mut::<FrameTimer>().tick();
-        self.schedule.execute(&mut self.world);
+        self.resources.get_mut::<FrameTimer>().tick();
+        self.schedule.execute(&mut self.world, &mut self.resources);
+        self.resources.get_mut::<InputState>().flush();
     }
 
     /// Renders the game world and all UI.
@@ -94,7 +106,7 @@ enum ApplicationRunner {
         /// The systems to be excecuted.
         schedule: Option<Schedule>,
         /// The custom ECS resources added.
-        resources: Option<AnyMap>,
+        resources: Option<Resources>,
         /// A proxy to manage the async inititalization on the web.
         #[cfg(target_family = "wasm")]
         proxy: Option<EventLoopProxy<Application>>,
@@ -178,18 +190,24 @@ pub struct ApplicationBuilder {
     schedule: Schedule,
 
     /// The custom ECS resources added.
-    resources: AnyMap,
+    resources: Resources,
 }
 
 impl ApplicationBuilder {
     /// Registers a system to be run once at application initialization.
-    pub fn add_startup_system<T: Fn(&mut World) + 'static>(mut self, system: T) -> Self {
+    pub fn add_startup_system<T: Fn(&mut World, &mut Resources) + 'static>(
+        mut self,
+        system: T,
+    ) -> Self {
         self.schedule.add_startup_system(system);
         self
     }
 
     /// Registers a system to be run in the update cycle of the app.
-    pub fn add_update_system<T: Fn(&mut World) + 'static>(mut self, system: T) -> Self {
+    pub fn add_update_system<T: Fn(&mut World, &mut Resources) + 'static>(
+        mut self,
+        system: T,
+    ) -> Self {
         self.schedule.add_update_system(system);
         self
     }
@@ -217,7 +235,7 @@ impl Default for ApplicationBuilder {
     fn default() -> Self {
         Self {
             schedule: Schedule::new(),
-            resources: AnyMap::new(),
+            resources: Resources::new(),
         }
     }
 }

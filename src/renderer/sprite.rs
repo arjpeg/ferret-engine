@@ -17,7 +17,7 @@ pub struct Mesh2D(pub Shape2D);
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Shape2D {
     /// A rectangle centered at the origin with corners at (-1, -1), (1, 1).
-    Rectangle,
+    Square,
 }
 
 /// A material used for rendering a 2D sprite
@@ -36,8 +36,8 @@ pub enum Material2D {
 
 /// The main 2D sprite renderer, responsible for efficiently batching 2D geometry.
 pub(crate) struct SpriteRenderer {
-    /// The geometry mesh for rectangles.
-    rectangle_mesh: GeometryMesh,
+    /// The geometry mesh for squares.
+    square_mesh: GeometryMesh,
 
     /// The buffer holding all information for sprites currently being rendered.
     instance_buffer: Buffer,
@@ -72,9 +72,9 @@ impl SpriteRenderer {
             mapped_at_creation: false,
         });
 
-        let rectangle_mesh = GeometryMesh::new(
+        let square_mesh = GeometryMesh::new(
             device,
-            "SpriteRenderer::rectangle_mesh",
+            "SpriteRenderer::square_mesh",
             &[
                 SpriteVertex {
                     position: vec2(-1.0, 1.0),
@@ -113,7 +113,7 @@ impl SpriteRenderer {
         });
 
         Self {
-            rectangle_mesh,
+            square_mesh,
             instance_buffer,
             camera_bind_group,
             camera_buffer,
@@ -172,7 +172,7 @@ impl SpriteRenderer {
 
         for (shape, (first_instance, count)) in sprite_instance_ranges {
             let mesh = match shape {
-                Shape2D::Rectangle => &self.rectangle_mesh,
+                Shape2D::Square => &self.square_mesh,
             };
 
             rpass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
